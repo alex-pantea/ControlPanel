@@ -6,7 +6,7 @@
 		<ImplicitUsings>enable</ImplicitUsings>
 		<UserSecretsId>dotnet-YTMDRemoteControl-CABAD872-F714-411E-8C93-D8421E554607</UserSecretsId>
 		<Product>$(AssemblyName)</Product>
-		<AssemblyName>Music Panel</AssemblyName>
+		<AssemblyName>Control Panel</AssemblyName>
 		<ApplicationIcon>assets\img\favicon.ico</ApplicationIcon>
 	</PropertyGroup>
 
@@ -19,6 +19,6 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<ProjectReference Include="..\MusicPanel.Core\MusicPanel.Core.csproj" />
+		<ProjectReference Include="..\ControlPanel.Core\ControlPanel.Core.csproj" />
 	</ItemGroup>
 </Project>

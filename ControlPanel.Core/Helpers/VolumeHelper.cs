@@ -1,6 +1,6 @@
 ﻿using System.Runtime.InteropServices;
 
-namespace MusicPanel.Core.Helpers
+namespace ControlPanel.Core.Helpers
 {
     public static class VolumeHelper
     {
