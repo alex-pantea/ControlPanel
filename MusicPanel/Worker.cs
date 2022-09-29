@@ -25,6 +25,8 @@ namespace MusicPanel
             }
             set
             {
+                // When changing the volume source we want to 'listen' to, the SSH Monitor uses polling.
+                // So, we need to enable the timer
                 _sshMonitor.timer.Enabled = value == VolumeListener.RemoteSystem;
                 _state = value;
             }
@@ -50,7 +52,8 @@ namespace MusicPanel
 
         private void VolumeMonitor_MuteChanged(object? sender, VolumeChangedEventArgs e)
         {
-            if (_state == VolumeListener.LocalSystem)
+            _logger.LogTrace($"{(_masterVolume ? "master" : _appName)} muted");
+            if (State == VolumeListener.LocalSystem)
             {
                 _serialHelper.SetMute(e.Mute);
             }
@@ -58,7 +61,8 @@ namespace MusicPanel
 
         private void VolumeMonitor_VolumeChanged(object? sender, VolumeChangedEventArgs e)
         {
-            if (_state == VolumeListener.LocalSystem)
+            _logger.LogTrace($"{(_masterVolume ? "master" : _appName)} volume changed to: {e.Volume:00}");
+            if (State == VolumeListener.LocalSystem && !_serialMonitor.Fader.Touched)
             {
                 _serialHelper.SetLevel((int)e.Volume);
             }
@@ -68,42 +72,60 @@ namespace MusicPanel
         {
             if (e.Fader.Touched && State == VolumeListener.LocalSystem)
             {
+                _logger.LogTrace($"setting {(_masterVolume ? "master": _appName)} volume to: {e.Fader.Level:00}");
                 _volumeMonitor.SetVolume(e.Fader.Level);
             }
             else if (e.Fader.Touched && State == VolumeListener.RemoteSystem)
             {
+                _logger.LogTrace($"setting remote volume to: {e.Fader.Level:00}");
                 _sshHelper.SetVolume(e.Fader.Level);
             }
         }
 
         private void SerialMonitor_DoubleClicked(object? sender, FaderLevelChangedEventArgs e)
         {
-            State = VolumeListener.LocalSystem;
-            if (_masterVolume)
+            _logger.LogInformation("slider double-clicked");
+            if (State == VolumeListener.LocalSystem)
             {
-                _masterVolume = false;
-                _volumeMonitor.SetApp(_appName);
-            }
-            else
-            {
-                _masterVolume = true;
-                _volumeMonitor.SetApp();
+                if (_masterVolume)
+                {
+                    _logger.LogInformation($"controlling {_appName} volume");
+                    _masterVolume = false;
+                    _volumeMonitor.SetApp(_appName);
+                }
+                else
+                {
+                    _logger.LogInformation("controlling master volume");
+                    _masterVolume = true;
+                    _volumeMonitor.SetApp();
+                }
             }
         }
 
         private void SerialMonitor_TripleClicked(object? sender, FaderLevelChangedEventArgs e)
         {
-            State = VolumeListener.RemoteSystem;
+            _logger.LogInformation("slider triple-clicked");
+            if (State == VolumeListener.LocalSystem)
+            {
+                _logger.LogInformation("controlling remote system");
+                State = VolumeListener.RemoteSystem;
+            }
+            else if (State == VolumeListener.RemoteSystem)
+            {
+                _logger.LogInformation("controlling local system");
+                State = VolumeListener.LocalSystem;
+            }
         }
 
         private void SerialMonitor_HeldDown(object? sender, FaderLevelChangedEventArgs e)
         {
-            State = VolumeListener.LocalSystem;
+            _logger.LogInformation($"slider held down {e.Fader.HoldCount} times");
         }
 
         private void SshMonitor_VolumeChanged(object? sender, PhoneChangedEventArgs e)
         {
-            if (State == VolumeListener.RemoteSystem && e.Phone.Volume >= 0 && e.Phone.Volume <= 100)
+            _logger.LogTrace($"remote volume changed to: {e.Phone.Volume:00}");
+            if (State == VolumeListener.RemoteSystem && e.Phone.Volume >= 0 && e.Phone.Volume <= 100 && !_serialMonitor.Fader.Touched)
             {
                 _serialHelper.SetLevel((int)e.Phone.Volume);
             }
@@ -115,6 +137,7 @@ namespace MusicPanel
             _serialMonitor = new(_serialHelper, stoppingToken);
             _serialMonitor.LevelChanged += SerialMonitor_LevelChanged;
             _serialMonitor.DoubleClicked += SerialMonitor_DoubleClicked;
+            _serialMonitor.TripleClicked += SerialMonitor_TripleClicked;
             //_serialMonitor.HeldDown += SerialMonitor_HeldDown;
 
             while (!stoppingToken.IsCancellationRequested)

@@ -9,7 +9,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MusicPanel", "MusicPanel\Mu
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "MusicPanel.Arduino", "MusicPanel.Arduino", "{A2CA6DB1-839C-43BD-A451-05383B7F708A}"
 	ProjectSection(SolutionItems) = preProject
-		MotorizedFader.ino = MotorizedFader.ino
+		MotorizedFader.cpp = MotorizedFader.cpp
 	EndProjectSection
 EndProject
 Global

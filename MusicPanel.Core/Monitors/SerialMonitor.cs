@@ -9,7 +9,7 @@ namespace MusicPanel.Core.Helpers
 
         private Fader _fader = new();
 
-        protected Fader Fader
+        public Fader Fader
         {
             get
             {
@@ -37,10 +37,13 @@ namespace MusicPanel.Core.Helpers
                     _fader = value;
                     On_TripleClicked();
                 }
-                if (_fader.HoldCount != value.HoldCount && _fader.HoldCount == 2)
+                if (_fader.HoldCount != value.HoldCount)
                 {
                     _fader = value;
-                    On_HeldDown();
+                    if (value.HoldCount != 0)
+                    {
+                        On_HeldDown();
+                    }
                 }
                 _fader = value;
             }
