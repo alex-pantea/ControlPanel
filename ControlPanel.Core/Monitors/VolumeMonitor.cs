@@ -1,6 +1,6 @@
 ﻿using System.Diagnostics;
 
-namespace MusicPanel.Core.Helpers
+namespace ControlPanel.Core.Helpers
 {
     public class VolumeMonitor
     {

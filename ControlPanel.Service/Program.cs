@@ -1,7 +1,7 @@
 IHost host = Host.CreateDefaultBuilder(args)
     .ConfigureServices(services =>
     {
-        services.AddHostedService<MusicPanel.Worker>();
+        services.AddHostedService<ControlPanel.Worker>();
     })
     .Build();
 

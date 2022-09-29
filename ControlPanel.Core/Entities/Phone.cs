@@ -1,4 +1,4 @@
-﻿namespace MusicPanel.Core.Entities
+﻿namespace ControlPanel.Core.Entities
 {
     public class Phone
     {

@@ -1,6 +1,6 @@
-using MusicPanel.Core.Helpers;
+using ControlPanel.Core.Helpers;
 
-namespace MusicPanel
+namespace ControlPanel
 {
     public class Worker : BackgroundService
     {

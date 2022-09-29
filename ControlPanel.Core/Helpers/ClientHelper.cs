@@ -1,7 +1,7 @@
-﻿using MusicPanel.Core.Entities;
+﻿using ControlPanel.Core.Entities;
 using Newtonsoft.Json;
 
-namespace MusicPanel.Core.Helpers
+namespace ControlPanel.Core.Helpers
 {
     public class ClientHelper
     {

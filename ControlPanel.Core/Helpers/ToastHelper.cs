@@ -1,7 +1,7 @@
 ﻿using Microsoft.Toolkit.Uwp.Notifications;
-using MusicPanel.Core.Entities;
+using ControlPanel.Core.Entities;
 
-namespace MusicPanel.Core.Helpers
+namespace ControlPanel.Core.Helpers
 {
     public class ToastHelper
     {
