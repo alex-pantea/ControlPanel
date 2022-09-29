@@ -26,7 +26,7 @@ namespace ControlPanel
             set
             {
                 // When changing the volume source we want to 'listen' to, the SSH Monitor uses polling.
-                // So, we need to enable the timer
+                // So, we need to enable/disable the timer based on the state
                 _sshMonitor.timer.Enabled = value == VolumeListener.RemoteSystem;
                 _state = value;
             }
@@ -38,6 +38,9 @@ namespace ControlPanel
             _logger.LogTrace("Worker started at: {time}", DateTimeOffset.Now);
 
             _serialHelper = new("COM12", 115200);
+
+            // Not ideal to keep this password as default, but SSH is configured to turn off on the iPhone
+            // once disconnected from the wifi network.
             _sshHelper = new("192.168.1.64", 2222, "mobile", "alpine");
 
             _sshMonitor = new(_sshHelper);
@@ -138,6 +141,8 @@ namespace ControlPanel
             _serialMonitor.LevelChanged += SerialMonitor_LevelChanged;
             _serialMonitor.DoubleClicked += SerialMonitor_DoubleClicked;
             _serialMonitor.TripleClicked += SerialMonitor_TripleClicked;
+
+            // HeldDown is experiencing issues from the arduino, so temporarily disabled
             //_serialMonitor.HeldDown += SerialMonitor_HeldDown;
 
             while (!stoppingToken.IsCancellationRequested)
