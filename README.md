@@ -13,6 +13,11 @@ This would allow integrating into projects such as [home assistant](https://www.
 
 Prototype device to experiment functionality and use.
 
+#### Demo Video
+<a href="https://vimeo.com/759258811">
+    <img src="https://i.imgur.com/w9uoxgJ.jpg" width="480" />
+</a>
+
 Currently using proto-board with handwiring for the prototype, and inefficient L298N motor driver.
 
 ### Control Panel X4
