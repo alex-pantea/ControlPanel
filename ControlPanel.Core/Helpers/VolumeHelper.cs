@@ -1,4 +1,5 @@
 ﻿using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 
 namespace ControlPanel.Core.Helpers
 {
@@ -12,15 +13,14 @@ namespace ControlPanel.Core.Helpers
         /// <returns>-1 in case of an error, if successful the value will be between 0 and 100</returns>
         public static float GetMasterVolume()
         {
-            IAudioEndpointVolume masterVol = null;
+            IAudioEndpointVolume? masterVol = null;
             try
             {
                 masterVol = GetMasterVolumeObject();
                 if (masterVol == null)
                     return -1;
 
-                float volumeLevel;
-                masterVol.GetMasterVolumeLevelScalar(out volumeLevel);
+                masterVol.GetMasterVolumeLevelScalar(out float volumeLevel);
                 return volumeLevel * 100;
             }
             finally
@@ -37,15 +37,14 @@ namespace ControlPanel.Core.Helpers
         /// <returns>false if not muted, true if volume is muted</returns>
         public static bool GetMasterVolumeMute()
         {
-            IAudioEndpointVolume masterVol = null;
+            IAudioEndpointVolume? masterVol = null;
             try
             {
                 masterVol = GetMasterVolumeObject();
                 if (masterVol == null)
                     return false;
 
-                bool isMuted;
-                masterVol.GetMute(out isMuted);
+                masterVol.GetMute(out bool isMuted);
                 return isMuted;
             }
             finally
@@ -61,7 +60,7 @@ namespace ControlPanel.Core.Helpers
         /// <param name="newLevel">Value between 0 and 100 indicating the desired scalar value of the volume</param>
         public static void SetMasterVolume(float newLevel)
         {
-            IAudioEndpointVolume masterVol = null;
+            IAudioEndpointVolume? masterVol = null;
             try
             {
                 masterVol = GetMasterVolumeObject();
@@ -85,7 +84,7 @@ namespace ControlPanel.Core.Helpers
         /// <returns>the new volume level assigned</returns>
         public static float StepMasterVolume(float stepAmount)
         {
-            IAudioEndpointVolume masterVol = null;
+            IAudioEndpointVolume? masterVol = null;
             try
             {
                 masterVol = GetMasterVolumeObject();
@@ -95,8 +94,7 @@ namespace ControlPanel.Core.Helpers
                 float stepAmountScaled = stepAmount / 100;
 
                 // Get the level
-                float volumeLevel;
-                masterVol.GetMasterVolumeLevelScalar(out volumeLevel);
+                masterVol.GetMasterVolumeLevelScalar(out float volumeLevel);
 
                 // Calculate the new level
                 float newLevel = volumeLevel + stepAmountScaled;
@@ -121,7 +119,7 @@ namespace ControlPanel.Core.Helpers
         /// <param name="isMuted">true to mute the master volume, false to unmute</param>
         public static void SetMasterVolumeMute(bool isMuted)
         {
-            IAudioEndpointVolume masterVol = null;
+            IAudioEndpointVolume? masterVol = null;
             try
             {
                 masterVol = GetMasterVolumeObject();
@@ -143,15 +141,14 @@ namespace ControlPanel.Core.Helpers
         /// <returns>the current mute state, true if the volume was muted, false if unmuted</returns>
         public static bool ToggleMasterVolumeMute()
         {
-            IAudioEndpointVolume masterVol = null;
+            IAudioEndpointVolume? masterVol = null;
             try
             {
                 masterVol = GetMasterVolumeObject();
                 if (masterVol == null)
                     return false;
 
-                bool isMuted;
-                masterVol.GetMute(out isMuted);
+                masterVol.GetMute(out bool isMuted);
                 masterVol.SetMute(!isMuted, Guid.Empty);
 
                 return !isMuted;
@@ -163,18 +160,17 @@ namespace ControlPanel.Core.Helpers
             }
         }
 
-        private static IAudioEndpointVolume GetMasterVolumeObject()
+        private static IAudioEndpointVolume? GetMasterVolumeObject()
         {
-            IMMDeviceEnumerator deviceEnumerator = null;
-            IMMDevice speakers = null;
+            IMMDeviceEnumerator? deviceEnumerator = null;
+            IMMDevice? speakers = null;
             try
             {
                 deviceEnumerator = (IMMDeviceEnumerator)(new MMDeviceEnumerator());
                 deviceEnumerator.GetDefaultAudioEndpoint(EDataFlow.eRender, ERole.eMultimedia, out speakers);
 
                 Guid IID_IAudioEndpointVolume = typeof(IAudioEndpointVolume).GUID;
-                object o;
-                speakers.Activate(ref IID_IAudioEndpointVolume, 0, IntPtr.Zero, out o);
+                speakers.Activate(ref IID_IAudioEndpointVolume, 0, IntPtr.Zero, out object o);
                 IAudioEndpointVolume masterVol = (IAudioEndpointVolume)o;
 
                 return masterVol;
@@ -196,31 +192,29 @@ namespace ControlPanel.Core.Helpers
 
         public static float? GetApplicationVolume(int pid)
         {
-            ISimpleAudioVolume volume = GetVolumeObject(pid);
+            ISimpleAudioVolume? volume = GetVolumeObject(pid);
             if (volume == null)
                 return null;
 
-            float level;
-            volume.GetMasterVolume(out level);
+            volume.GetMasterVolume(out float level);
             Marshal.ReleaseComObject(volume);
             return level * 100;
         }
 
         public static bool? GetApplicationMute(int pid)
         {
-            ISimpleAudioVolume volume = GetVolumeObject(pid);
+            ISimpleAudioVolume? volume = GetVolumeObject(pid);
             if (volume == null)
                 return null;
 
-            bool mute;
-            volume.GetMute(out mute);
+            volume.GetMute(out bool mute);
             Marshal.ReleaseComObject(volume);
             return mute;
         }
 
         public static void SetApplicationVolume(int pid, float level)
         {
-            ISimpleAudioVolume volume = GetVolumeObject(pid);
+            ISimpleAudioVolume? volume = GetVolumeObject(pid);
             if (volume == null)
                 return;
 
@@ -231,7 +225,7 @@ namespace ControlPanel.Core.Helpers
 
         public static void SetApplicationMute(int pid, bool mute)
         {
-            ISimpleAudioVolume volume = GetVolumeObject(pid);
+            ISimpleAudioVolume? volume = GetVolumeObject(pid);
             if (volume == null)
                 return;
 
@@ -240,12 +234,12 @@ namespace ControlPanel.Core.Helpers
             Marshal.ReleaseComObject(volume);
         }
 
-        private static ISimpleAudioVolume GetVolumeObject(int pid)
+        private static ISimpleAudioVolume? GetVolumeObject(int pid)
         {
-            IMMDeviceEnumerator deviceEnumerator = null;
-            IAudioSessionEnumerator sessionEnumerator = null;
-            IAudioSessionManager2 mgr = null;
-            IMMDevice speakers = null;
+            IMMDeviceEnumerator? deviceEnumerator = null;
+            IAudioSessionEnumerator? sessionEnumerator = null;
+            IAudioSessionManager2? mgr = null;
+            IMMDevice? speakers = null;
             try
             {
                 // get the speakers (1st render + multimedia) device
@@ -254,20 +248,18 @@ namespace ControlPanel.Core.Helpers
 
                 // activate the session manager. we need the enumerator
                 Guid IID_IAudioSessionManager2 = typeof(IAudioSessionManager2).GUID;
-                object o;
-                speakers.Activate(ref IID_IAudioSessionManager2, 0, IntPtr.Zero, out o);
+                speakers.Activate(ref IID_IAudioSessionManager2, 0, IntPtr.Zero, out object o);
                 mgr = (IAudioSessionManager2)o;
 
                 // enumerate sessions for on this device
                 mgr.GetSessionEnumerator(out sessionEnumerator);
-                int count;
-                sessionEnumerator.GetCount(out count);
+                sessionEnumerator.GetCount(out int count);
 
                 // search for an audio session with the required process-id
-                ISimpleAudioVolume volumeControl = null;
+                ISimpleAudioVolume? volumeControl = null;
                 for (int i = 0; i < count; ++i)
                 {
-                    IAudioSessionControl2 ctl = null;
+                    IAudioSessionControl2? ctl = null;
                     int cpid = -1;
                     try
                     {
@@ -289,6 +281,56 @@ namespace ControlPanel.Core.Helpers
                 }
 
                 return volumeControl;
+            }
+            finally
+            {
+                if (sessionEnumerator != null) Marshal.ReleaseComObject(sessionEnumerator);
+                if (mgr != null) Marshal.ReleaseComObject(mgr);
+                if (speakers != null) Marshal.ReleaseComObject(speakers);
+                if (deviceEnumerator != null) Marshal.ReleaseComObject(deviceEnumerator);
+            }
+        }
+
+        public static IEnumerable<int> GetVolumeObjects()
+        {
+            IMMDeviceEnumerator? deviceEnumerator = null;
+            IAudioSessionEnumerator? sessionEnumerator = null;
+            IAudioSessionManager2? mgr = null;
+            IMMDevice? speakers = null;
+            try
+            {
+                // get the speakers (1st render + multimedia) device
+                deviceEnumerator = (IMMDeviceEnumerator)(new MMDeviceEnumerator());
+                deviceEnumerator.GetDefaultAudioEndpoint(EDataFlow.eRender, ERole.eMultimedia, out speakers);
+
+                // activate the session manager. we need the enumerator
+                Guid IID_IAudioSessionManager2 = typeof(IAudioSessionManager2).GUID;
+                speakers.Activate(ref IID_IAudioSessionManager2, 0, IntPtr.Zero, out object o);
+                mgr = (IAudioSessionManager2)o;
+
+                // enumerate sessions for on this device
+                mgr.GetSessionEnumerator(out sessionEnumerator);
+                sessionEnumerator.GetCount(out int count);
+
+                // enumerate audio sessions to get the pids playing audio
+                for (int i = 0; i < count; ++i)
+                {
+                    IAudioSessionControl2? ctl = null;
+                    int cpid = -1;
+                    try
+                    {
+                        sessionEnumerator.GetSession(i, out ctl);
+
+                        // NOTE: we could also use the app name from ctl.GetDisplayName()
+                        ctl.GetProcessId(out cpid);
+
+                        yield return cpid;
+                    }
+                    finally
+                    {
+                        if (ctl != null) Marshal.ReleaseComObject(ctl);
+                    }
+                }
             }
             finally
             {

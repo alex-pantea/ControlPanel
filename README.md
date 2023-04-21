@@ -8,17 +8,21 @@ This is still a WIP platform, with features planned to incorporate a Teensy with
 This would allow integrating into projects such as [home assistant](https://www.home-assistant.io/) for control of more than just volume levels.
 
 ## Designs
+
 ### Control Panel V1
+
 Prototype device to experiment functionality and use.
 
 Currently using proto-board with handwiring for the prototype, and inefficient L298N motor driver.
 
 ### Control Panel X4
+
 Planned for future, using 4 motorized faders.
 
 ## Firmware
 
 V1 version supports:
+
 - capacitive touch sensor on fader cap
 - single motorized fader
 - positioning fader using serial port
@@ -26,6 +30,7 @@ V1 version supports:
 ## Software
 
 V1 version supports:
+
 - layer switching through double or triple click (using the capacitive sensor)
 - controlling system volume
 - controlling app volume
@@ -33,6 +38,7 @@ V1 version supports:
 - player/track monitoring through [YouTube Music Desktop - Remote Control](https://ytmdesktop.app/)
 
 ## TODO
+
 - Add RGB (duh)
 - Migrate to Teensy 4.1
   - Look into using ESPHome for native WiFi support as an alternative

@@ -1,5 +1,5 @@
-﻿using Microsoft.Toolkit.Uwp.Notifications;
-using ControlPanel.Core.Entities;
+﻿using ControlPanel.Core.Entities;
+using Microsoft.Toolkit.Uwp.Notifications;
 
 namespace ControlPanel.Core.Helpers
 {

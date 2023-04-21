@@ -10,7 +10,7 @@ namespace ControlPanel
 
         private readonly VolumeMonitor _volumeMonitor;
         private readonly SshMonitor _sshMonitor;
-        private SerialMonitor _serialMonitor;
+        protected SerialMonitor _serialMonitor;
 
         private const string _appName = "Youtube Music Desktop App";
         private bool _masterVolume = true;
@@ -37,7 +37,9 @@ namespace ControlPanel
             _logger = logger;
             _logger.LogTrace("Worker started at: {time}", DateTimeOffset.Now);
 
-            _serialHelper = new("COM12", 115200);
+            //TODO: Add support for finding the serial port and identifying the correct device
+
+            _serialHelper = new("COM3", 115200);
 
             // Not ideal to keep this password as default, but SSH is configured to turn off on the iPhone
             // once disconnected from the wifi network.
@@ -51,11 +53,17 @@ namespace ControlPanel
             _volumeMonitor.VolumeChanged += VolumeMonitor_VolumeChanged;
 
             State = VolumeListener.LocalSystem;
+            
+            // Control App volume by default
+            _masterVolume= false;
+            _volumeMonitor.SetApp(_appName);
+
+            _logger.LogInformation("controlling {source} volume", _masterVolume ? "master" : _appName);
         }
 
         private void VolumeMonitor_MuteChanged(object? sender, VolumeChangedEventArgs e)
         {
-            _logger.LogTrace($"{(_masterVolume ? "master" : _appName)} muted");
+            _logger.LogTrace("{source} muted", _masterVolume ? "master" : _appName);
             if (State == VolumeListener.LocalSystem)
             {
                 _serialHelper.SetMute(e.Mute);
@@ -64,7 +72,7 @@ namespace ControlPanel
 
         private void VolumeMonitor_VolumeChanged(object? sender, VolumeChangedEventArgs e)
         {
-            _logger.LogTrace($"{(_masterVolume ? "master" : _appName)} volume changed to: {e.Volume:00}");
+            _logger.LogTrace("{source} volume changed to: {volume:00}", _masterVolume ? "master" : _appName, e.Volume);
             if (State == VolumeListener.LocalSystem && !_serialMonitor.Fader.Touched)
             {
                 _serialHelper.SetLevel((int)e.Volume);
@@ -75,12 +83,12 @@ namespace ControlPanel
         {
             if (e.Fader.Touched && State == VolumeListener.LocalSystem)
             {
-                _logger.LogTrace($"setting {(_masterVolume ? "master": _appName)} volume to: {e.Fader.Level:00}");
+                _logger.LogTrace("setting {source} volume to: {level:00}", _masterVolume ? "master" : _appName, e.Fader.Level);
                 _volumeMonitor.SetVolume(e.Fader.Level);
             }
             else if (e.Fader.Touched && State == VolumeListener.RemoteSystem)
             {
-                _logger.LogTrace($"setting remote volume to: {e.Fader.Level:00}");
+                _logger.LogTrace("setting remote volume to {level:00}", e.Fader.Level);
                 _sshHelper.SetVolume(e.Fader.Level);
             }
         }
@@ -88,26 +96,32 @@ namespace ControlPanel
         private void SerialMonitor_DoubleClicked(object? sender, FaderLevelChangedEventArgs e)
         {
             _logger.LogInformation("slider double-clicked");
-            if (State == VolumeListener.LocalSystem)
+            if (State == VolumeListener.RemoteSystem)
+            {
+                State = VolumeListener.LocalSystem;
+                _logger.LogInformation("controlling local system - master volume");
+                _masterVolume = true;
+                _volumeMonitor.SetApp();
+            }
+            else if (State == VolumeListener.LocalSystem)
             {
                 if (_masterVolume)
-                {
-                    _logger.LogInformation($"controlling {_appName} volume");
+                {   
                     _masterVolume = false;
                     _volumeMonitor.SetApp(_appName);
                 }
                 else
                 {
-                    _logger.LogInformation("controlling master volume");
                     _masterVolume = true;
                     _volumeMonitor.SetApp();
                 }
+                _logger.LogInformation("controlling {source} volume", _masterVolume ? "master" : _appName);
             }
         }
 
         private void SerialMonitor_TripleClicked(object? sender, FaderLevelChangedEventArgs e)
         {
-            _logger.LogInformation("slider triple-clicked");
+            _logger.LogTrace("slider triple-clicked");
             if (State == VolumeListener.LocalSystem)
             {
                 _logger.LogInformation("controlling remote system");
@@ -122,12 +136,12 @@ namespace ControlPanel
 
         private void SerialMonitor_HeldDown(object? sender, FaderLevelChangedEventArgs e)
         {
-            _logger.LogInformation($"slider held down {e.Fader.HoldCount} times");
+            _logger.LogInformation("slider held down {holdCount} times", e.Fader.HoldCount);
         }
 
         private void SshMonitor_VolumeChanged(object? sender, PhoneChangedEventArgs e)
         {
-            _logger.LogTrace($"remote volume changed to: {e.Phone.Volume:00}");
+            _logger.LogTrace("remote volume changed to: {volume:00}", e.Phone.Volume);
             if (State == VolumeListener.RemoteSystem && e.Phone.Volume >= 0 && e.Phone.Volume <= 100 && !_serialMonitor.Fader.Touched)
             {
                 _serialHelper.SetLevel((int)e.Phone.Volume);

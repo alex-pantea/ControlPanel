@@ -12,6 +12,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ControlPanel.Core", "Contro
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ControlPanel.Service", "ControlPanel.Service\ControlPanel.Service.csproj", "{4B38B6B4-DBED-4E07-A305-C2636613D514}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ControlPanel.TaskTray", "ControlPanel.TaskTray\ControlPanel.TaskTray.csproj", "{131A0E02-391D-4458-83A7-954BC4CC5744}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -26,6 +28,10 @@ Global
 		{4B38B6B4-DBED-4E07-A305-C2636613D514}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{4B38B6B4-DBED-4E07-A305-C2636613D514}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{4B38B6B4-DBED-4E07-A305-C2636613D514}.Release|Any CPU.Build.0 = Release|Any CPU
+		{131A0E02-391D-4458-83A7-954BC4CC5744}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{131A0E02-391D-4458-83A7-954BC4CC5744}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{131A0E02-391D-4458-83A7-954BC4CC5744}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{131A0E02-391D-4458-83A7-954BC4CC5744}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

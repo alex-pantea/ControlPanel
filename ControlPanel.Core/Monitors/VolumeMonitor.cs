@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics;
+using System.Security.Cryptography;
 
 namespace ControlPanel.Core.Helpers
 {
@@ -7,7 +8,7 @@ namespace ControlPanel.Core.Helpers
         private readonly Timer _timer = null!;
         private readonly object _pidLock = new();
 
-        private IEnumerable<int> _pids = Array.Empty<int>();
+        private int _pid = -1;
         private bool _mute = false;
         private int _volume = -1;
 
@@ -15,7 +16,7 @@ namespace ControlPanel.Core.Helpers
         {
             lock (_pidLock)
             {
-                if (!_pids.Any())
+                if (_pid == -1)
                 {
                     Volume = (int)VolumeHelper.GetMasterVolume();
                     Mute = VolumeHelper.GetMasterVolumeMute();
@@ -24,17 +25,8 @@ namespace ControlPanel.Core.Helpers
                 {
                     try
                     {
-                        Volume = (int)VolumeHelper.GetApplicationVolume(_pids.First())!.Value;
-                        Mute = VolumeHelper.GetApplicationMute(_pids.First())!.Value;
-
-                        foreach (var pid in _pids)
-                        {
-                            if (pid != _pids.First())
-                            {
-                                VolumeHelper.SetApplicationVolume(pid, Volume);
-                                VolumeHelper.SetApplicationMute(pid, Mute);
-                            }
-                        }
+                        Volume = (int)VolumeHelper.GetApplicationVolume(_pid)!.Value;
+                        Mute = VolumeHelper.GetApplicationMute(_pid)!.Value;
                     }
                     catch (Exception) { }
                 }
@@ -98,16 +90,13 @@ namespace ControlPanel.Core.Helpers
             _volume = volume;
             lock (_pidLock)
             {
-                if (!_pids.Any())
+                if (_pid == -1)
                 {
                     VolumeHelper.SetMasterVolume(volume);
                 }
                 else
                 {
-                    foreach (int pid in _pids)
-                    {
-                        VolumeHelper.SetApplicationVolume(pid, volume);
-                    }
+                    VolumeHelper.SetApplicationVolume(_pid, volume);
                 }
             }
         }
@@ -117,16 +106,13 @@ namespace ControlPanel.Core.Helpers
             _mute = !_mute;
             lock (_pidLock)
             {
-                if (!_pids.Any())
+                if (_pid == -1)
                 {
                     VolumeHelper.SetMasterVolumeMute(_mute);
                 }
                 else
                 {
-                    foreach (int pid in _pids)
-                    {
-                        VolumeHelper.SetApplicationMute(pid, _mute);
-                    }
+                    VolumeHelper.SetApplicationMute(_pid, _mute);
                 }
             }
         }
@@ -144,8 +130,7 @@ namespace ControlPanel.Core.Helpers
                 {
                     try
                     {
-
-                        _pids = Process.GetProcessesByName(appName).Select(p => p.Id).TakeLast(1);
+                        _pid = Process.GetProcessesByName(appName).Select(p => p.Id).Intersect(VolumeHelper.GetVolumeObjects()).First();
                     }
                     catch (Exception)
                     {
@@ -154,7 +139,7 @@ namespace ControlPanel.Core.Helpers
                 }
                 else
                 {
-                    _pids = Array.Empty<int>();
+                    _pid = -1;
                 }
             }
         }
