@@ -1,5 +1,6 @@
 ﻿using ControlPanel.Core.Helpers;
 using System.Diagnostics;
+using System.Globalization;
 using static System.Windows.Forms.AxHost;
 
 namespace ControlPanel.TaskTray
@@ -15,7 +16,8 @@ namespace ControlPanel.TaskTray
         private readonly VolumeMonitor _volumeMonitor;
         protected SerialMonitor _serialMonitor;
 
-        private string _appName = "System Volume";
+        private readonly object _appLock = new();
+        private int _appId = -1;
         private bool _masterVolume = true;
 
         public ControlPanelAppContext()
@@ -23,6 +25,7 @@ namespace ControlPanel.TaskTray
             // Set icon and visibility
             _notifyIcon.Icon = Properties.Resources.AppIcon;
             _notifyIcon.Visible = true;
+            _notifyIcon.Text = "Control Panel";
 
             // Show context menu on mouse click as well as right-click
             _notifyIcon.MouseClick += (s, e) =>
@@ -51,15 +54,16 @@ namespace ControlPanel.TaskTray
         {
             if (sender is ToolStripItem item)
             {
-                lock (_appName)
+                lock (_appLock)
                 {
                     // If the object chosen is already the active one, stop execution
-                    if (item.Text == _appName)
+                    if (int.Parse(item.Name) == _appId)
                     {
                         return;
                     }
+
                     _masterVolume = item.Text == "System Volume";
-                    _appName = item.Text;
+                    _appId = int.Parse(item.Name);
 
                     if (_masterVolume)
                     {
@@ -67,7 +71,7 @@ namespace ControlPanel.TaskTray
                     }
                     else
                     {
-                        _volumeMonitor.SetApp(_appName);
+                        _volumeMonitor.SetApp(_appId);
                     }
                 }
             }
@@ -87,7 +91,7 @@ namespace ControlPanel.TaskTray
         {
             _notifyIcon.ContextMenuStrip.Items.Clear();
 
-            _notifyIcon.AddLabel("Volume Control Panel");
+            _notifyIcon.AddLabel("Control Panel");
             _notifyIcon.AddSeperator();
 
             // Add items
@@ -99,21 +103,31 @@ namespace ControlPanel.TaskTray
         private void AddAudioApps()
         {
             var appItem = _notifyIcon.AddItem("System Volume");
+            appItem.Name = "-1";
             appItem.Click += AppItem_Click;
             if (_masterVolume)
             {
                 appItem.Font = new Font(appItem.Font, FontStyle.Bold);
             }
 
-            IEnumerable<string> apps = GetAudioApps();
+            IEnumerable<Process> apps = GetAudioApps();
             if (apps.Any())
             {
                 _notifyIcon.AddSeperator();
-                foreach (string app in apps)
+                TextInfo textInfo = new CultureInfo("en-US", false).TextInfo;
+                foreach (Process app in apps)
                 {
-                    appItem = _notifyIcon.AddItem(app);
+                    if(!string.IsNullOrWhiteSpace(app.MainWindowTitle))
+                    {
+                        appItem = _notifyIcon.AddItem($"{textInfo.ToTitleCase(app.ProcessName)} | {textInfo.ToTitleCase(app.MainWindowTitle)}");
+                    }
+                    else
+                    {
+                        appItem = _notifyIcon.AddItem($"{textInfo.ToTitleCase(app.ProcessName)}");
+                    }
+                    appItem.Name = app.Id.ToString();
                     appItem.Click += AppItem_Click;
-                    if (!_masterVolume && app == _appName)
+                    if (!_masterVolume && app.Id == _appId)
                     {
                         appItem.Font = new Font(appItem.Font, FontStyle.Bold);
                     }
@@ -121,14 +135,14 @@ namespace ControlPanel.TaskTray
             }
         }
 
-        private IEnumerable<string> GetAudioApps()
+        private IEnumerable<Process> GetAudioApps()
         {
             foreach (int pid in VolumeHelper.GetVolumeObjects())
             {
-                string appName = Process.GetProcessById(pid).ProcessName;
-                if (!_ignoredApps.Contains(appName))
+                var process = Process.GetProcessById(pid);
+                if (!_ignoredApps.Contains(process.ProcessName))
                 {
-                    yield return appName;
+                    yield return process;
                 }
             }
         }
@@ -160,7 +174,8 @@ namespace ControlPanel.TaskTray
             if (_masterVolume)
             {
                 _masterVolume = false;
-                _volumeMonitor.SetApp(_appName);
+                _volumeMonitor.SetApp(_appId);
+                
             }
             else
             {

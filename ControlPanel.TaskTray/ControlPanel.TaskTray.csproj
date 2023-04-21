@@ -8,6 +8,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>False</UseWPF>
     <ApplicationIcon>Resources\AppIcon.ico</ApplicationIcon>
+    <AssemblyName>Control Panel</AssemblyName>
   </PropertyGroup>
 
   <ItemGroup>

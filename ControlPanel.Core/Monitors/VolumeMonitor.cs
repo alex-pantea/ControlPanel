@@ -122,7 +122,7 @@ namespace ControlPanel.Core.Helpers
             _timer = new Timer(Update, null, delay, period);
         }
 
-        public void SetApp(string appName = "")
+        public void SetApp(string appName)
         {
             lock (_pidLock)
             {
@@ -141,6 +141,14 @@ namespace ControlPanel.Core.Helpers
                 {
                     _pid = -1;
                 }
+            }
+        }
+
+        public void SetApp(int pid = -1)
+        {
+            lock (_pidLock)
+            {
+                _pid = pid;
             }
         }
 
