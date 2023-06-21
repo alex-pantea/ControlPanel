@@ -1,10 +1,7 @@
-#include <RunningAverage.h>
-#include <PID_v1.h>
-#include <BLEMIDI_Transport.h>
-#include <hardware/BLEMIDI_ESP32.h>
+#include <WiFi.h>
+#include <ArduinoJson.h>
+#include <PubSubClient.h>
 #include "src/Slide.h"
-
-BLEMIDI_CREATE_INSTANCE("Control Panel", MIDI)
 
 static const int NUM_OF_SLIDERS = 4;
 
@@ -34,38 +31,56 @@ static const int pwm4 = 25;
 
 Slide* slides[NUM_OF_SLIDERS];
 
+const char* ssid = "WIFI_HOST_HERE";
+const char* pswd = "WIFI_PSWD_HERE";
+const char* mqtt_host = "MQTT_IP_ADDRESS";
+const char* mqtt_user = "MQTT_USER";
+const char* mqtt_pswd = "MQTT_PSWD";
+const int mqtt_port = 1883;
+
+// Variables for MQTT Discovery
+const char* deviceModel = "ESP32Device";
+const char* deviceVersion = "1.0";
+const char* manufacturer = "AlexPantea";
+String deviceName = "ControlPanel";
+String mqttStatus = "esp32iotsensor/" + deviceName;
+
+WiFiClient wifiClient;
+PubSubClient pubSubClient(wifiClient);
+bool initSystem = true;
+String uniqueId;
+unsigned long _lastSent;
+
 void setup() {
 	Serial.begin(115200);
+
+	setupWifi();
+	pubSubClient.setServer(mqtt_host, mqtt_port);
+	pubSubClient.setCallback(MqttReceiverCallback);
 
 	slides[0] = new Slide(slide1, touch1, pwm1, in1A, in1B);
 	slides[1] = new Slide(slide2, touch2, pwm2, in2A, in2B);
 	slides[2] = new Slide(slide3, touch3, pwm3, in3A, in3B);
 	slides[3] = new Slide(slide4, touch4, pwm4, in4A, in4B);
 
-	MIDI.begin();
-
-	BLEMIDI.setHandleConnected([]() {
-		Serial.println("connected.");
-		});
-
-	BLEMIDI.setHandleDisconnected([]() {
-		Serial.println("disconnected.");
-		});
-
-	MIDI.setHandleNoteOn([](byte channel, byte note, byte velocity) {});
-	MIDI.setHandleNoteOff([](byte channel, byte note, byte velocity) {});
-
-	MIDI.setHandleControlChange([](byte controlNumber, byte controlValue, byte channel) {
-		Slide* slide = slides[controlNumber];
-	if (slide) {
-		Serial.printf("received command to go to %d on slider #%d.\n", map(controlValue, 0, 127, 0, 100), controlNumber);
-		slide->goToTargetAsync(map(controlValue, 0, 127, 0, 100));
-	}
-		});
 }
 
-void processMIDI() {
-	MIDI.read();
+void setupWifi() {
+	int counter = 0;
+	byte mac[6]{};
+	delay(10);
+
+	// Attempt to connect to the wireless network
+	WiFi.begin(ssid, pswd);
+
+	// Use the esp's MAC address as a unique device ID for Home Assistant
+	WiFi.macAddress(mac);
+	uniqueId = String(mac[0], HEX) + String(mac[1], HEX) + String(mac[2], HEX) + String(mac[3], HEX) + String(mac[4], HEX) + String(mac[5], HEX);
+
+	// Attempt to connect to WiFi a few times
+	while (WiFi.status() != WL_CONNECTED && counter++ < 8) {
+		delay(1000);
+	}
 }
 
 void processSerial() {
@@ -190,10 +205,6 @@ bool processSlides() {
 			if (slide->hasUpdate() && slide->isTouched()) {
 				int position = slide->pushUpdate();
 				hasUpdate = true;
-
-				// Send MIDI event
-				MIDI.sendControlChange(index, map(position, 0, 100, 0, 127), 1);
-				Serial.printf("sending MIDI to channel #%d with value: %d", index, map(position, 0, 100, 0, 127));
 			}
 		}
 	}
@@ -210,8 +221,94 @@ void resetSlides() {
 	}
 }
 
+void MqttReconnect() {
+	int mqttConnectionCounter = 0;
+	while (!pubSubClient.connected() && mqttConnectionCounter++ < 4) {
+		pubSubClient.connect(deviceName.c_str(), mqtt_user, mqtt_pswd);
+	}
+	if (pubSubClient.connected()) {
+		Serial.println("Subscribing to homeassistant/status..");
+		Serial.println("Subscribing to " + mqttStatus);
+		pubSubClient.subscribe("homeassistant/status");
+		pubSubClient.subscribe((mqttStatus + "/in").c_str(), 1);
+	}
+	delay(100);
+}
+
+void MqttReceiverCallback(char* topic, byte* inFrame, unsigned int length) {
+	String messageTopic = String(topic);
+	String payload;
+	for (int i = 0; i < length; i++) {
+		payload += (char)inFrame[i];
+	}
+
+	if (messageTopic == "homeassistant/status") {
+		MqttHomeAssistantDiscovery();
+	}
+	else if (messageTopic.startsWith(mqttStatus)) {
+		StaticJsonDocument<200> doc;
+		deserializeJson(doc, payload);
+		for (int index = 0; index < sizeof(slides) / sizeof(*slides); index++) {
+			Slide* slide = slides[index];
+			if (slide) {
+				if (doc.containsKey("slide" + String(index))) {
+					int level = doc["slide" + String(index)];
+					slide->getUpdate(level);
+					if (!slide->isTouched()) {
+						slide->goToTargetAsync(level);
+					}
+				}
+			}
+		}
+	}
+}
+
+void MqttHomeAssistantDiscovery() {
+	MqttReconnect();
+
+	if (pubSubClient.connected()) {
+		for (int index = 0; index < sizeof(slides) / sizeof(*slides); index++) {
+			Slide* slide = slides[index];
+			if (slide) {
+				StaticJsonDocument<600> payload;
+				JsonObject device;
+				JsonArray identifiers;
+
+				String discoveryTopic = "homeassistant/sensor/esp32iotsensor/" + deviceName + "_slide" + String(index) + "/config";
+				String strPayload;
+
+				payload["name"] = deviceName + ".slide" + String(index);
+				payload["uniq_id"] = uniqueId + "_slide" + String(index);
+				payload["stat_t"] = mqttStatus;
+				payload["dev_cla"] = "none";
+				payload["val_tpl"] = "{{ value_json.slide" + String(index) + " | is_defined }}";
+				device = payload.createNestedObject("device");
+				device["name"] = deviceName;
+				device["model"] = deviceModel;
+				device["sw_version"] = deviceVersion;
+				device["manufacturer"] = manufacturer;
+				identifiers = device.createNestedArray("identifiers");
+				identifiers.add(uniqueId);
+
+				serializeJson(payload, strPayload);
+
+				pubSubClient.publish(discoveryTopic.c_str(), strPayload.c_str());
+			}
+		}
+	}
+}
+
 void loop() {
-	processMIDI();
+	if (initSystem) {
+		initSystem = false;
+		MqttHomeAssistantDiscovery();
+	}
+
+	if (pubSubClient.connected()) {
+		pubSubClient.loop();
+	}
+
+	//processMIDI();
 	processSerial();
 	processSlides();
 }
