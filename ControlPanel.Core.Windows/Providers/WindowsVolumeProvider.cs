@@ -50,7 +50,7 @@ namespace ControlPanel.Core.Windows
             var _app = CoreAudioHelper.GetAudioApps().Where(app => app.ProcessName.Replace(" ", "").Equals(appName, StringComparison.InvariantCultureIgnoreCase));
             if (_app.Any())
             {
-                CoreAudioHelper.SetApplicationMute((uint)_app.First().Id,mute);
+                CoreAudioHelper.SetApplicationMute((uint)_app.First().Id, mute);
             }
         }
 

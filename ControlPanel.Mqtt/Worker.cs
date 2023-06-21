@@ -3,8 +3,6 @@ using ControlPanel.Core.Providers;
 using MQTTnet;
 using MQTTnet.Client;
 using MQTTnet.Protocol;
-using System.Collections;
-using System.Linq;
 
 namespace ControlPanel.Mqtt
 {

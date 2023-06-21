@@ -1,11 +1,11 @@
-﻿using System.Diagnostics;
-using CoreAudio;
+﻿using CoreAudio;
+using System.Diagnostics;
 
 namespace ControlPanel.Core.Helpers
 {
     public static class CoreAudioHelper
     {
-        private static readonly string[] IGNORED_APPS = 
+        private static readonly string[] IGNORED_APPS =
             { "idle", "signalrgb", "steamwebhelper", "steam", "parsecd", "mstsc", "brave", "atmgr", "msedgewebview2", "wsaclient", "windowsterminal" };
 
         #region Master Volume Manipulation
@@ -267,7 +267,10 @@ namespace ControlPanel.Core.Helpers
                         process = null;
                     }
                 }
-                catch { }
+                catch
+                {
+                    yield break;
+                }
                 if (process != null)
                 {
                     yield return process;

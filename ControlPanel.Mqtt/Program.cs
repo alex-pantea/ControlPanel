@@ -1,7 +1,3 @@
-using ControlPanel.Mqtt;
-using ControlPanel.Core;
-using Microsoft.Extensions.Hosting;
-using ControlPanel.Core.Providers;
 using ControlPanel.Core.Factories;
 
 namespace ControlPanel.Mqtt;
