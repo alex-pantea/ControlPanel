@@ -160,28 +160,33 @@ namespace ControlPanel.Mqtt
             string payload = message.ConvertPayloadToString();
             _logger.LogTrace("received {payload}", payload);
 
-            if (payload.Contains("slide"))
+            try
             {
-                int level = int.Parse(payload[(payload.IndexOf(":") + 1)..^1].Trim());
-                if (payload.Contains("slide0"))
+
+                if (payload.Contains("slide"))
                 {
-                    VolumeInfo vInfo = _volumes["SystemVolume"];
-                    vInfo.VolumeChanged -= VolumeInfo_VolumeChanged;
-                    vInfo.MutedChanged -= VolumeInfo_MutedChanged;
-                    _volumeProvider.SetSystemVolumeLevel(level);
-                    vInfo.Volume = _volumeProvider.GetSystemVolumeLevel();
-                    vInfo.VolumeChanged += VolumeInfo_VolumeChanged;
-                    vInfo.MutedChanged += VolumeInfo_MutedChanged;
-                }
-                else if (payload.Contains("slide1"))
-                {
-                    // Using threads here to improve response times
-                    (new Thread(() =>
+                    int level = int.Parse(payload[(payload.IndexOf(":") + 1)..^1].Trim());
+                    if (payload.Contains("slide0"))
                     {
-                        _volumeProvider.SetApplicationVolumeLevel("YouTubeMusicDesktopApp", level);
-                    })).Start();
+                        VolumeInfo vInfo = _volumes["SystemVolume"];
+                        vInfo.VolumeChanged -= VolumeInfo_VolumeChanged;
+                        vInfo.MutedChanged -= VolumeInfo_MutedChanged;
+                        _volumeProvider.SetSystemVolumeLevel(level);
+                        vInfo.Volume = _volumeProvider.GetSystemVolumeLevel();
+                        vInfo.VolumeChanged += VolumeInfo_VolumeChanged;
+                        vInfo.MutedChanged += VolumeInfo_MutedChanged;
+                    }
+                    else if (payload.Contains("slide1"))
+                    {
+                        // Using threads here to improve response times
+                        (new Thread(() =>
+                        {
+                            _volumeProvider.SetApplicationVolumeLevel("YouTubeMusicDesktopApp", level);
+                        })).Start();
+                    }
                 }
             }
+            catch { }
 
             return Task.CompletedTask;
         }
