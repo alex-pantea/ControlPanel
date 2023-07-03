@@ -8,6 +8,8 @@ namespace ControlPanel.Core.Helpers
         private static readonly string[] IGNORED_APPS =
             { "idle", "signalrgb", "steamwebhelper", "steam", "parsecd", "mstsc", "brave", "atmgr", "msedgewebview2", "wsaclient", "windowsterminal" };
 
+        private static readonly Dictionary<uint, SimpleAudioVolume> _appVolumeObjects = new();
+
         #region Master Volume Manipulation
 
         /// <summary>
@@ -109,7 +111,7 @@ namespace ControlPanel.Core.Helpers
         public static AudioEndpointVolume? GetMasterVolumeObject()
         {
             MMDeviceEnumerator deviceEnumerator = new(Guid.NewGuid());
-            MMDevice speakers = deviceEnumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
+            using MMDevice speakers = deviceEnumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
 
             return speakers.AudioEndpointVolume;
         }
@@ -136,108 +138,95 @@ namespace ControlPanel.Core.Helpers
 
         public static float? GetApplicationVolume(uint pid)
         {
-            SimpleAudioVolume? volume = GetVolumeObject(pid);
-            if (volume == null)
-                return null;
-
-            return volume.MasterVolume * 100;
+            if (!_appVolumeObjects.ContainsKey(pid))
+            {
+                AudioSessionControl2? session = GetVolumeObject(pid);
+                if (session == null || session.SimpleAudioVolume == null)
+                {
+                    return 0;
+                }
+                _appVolumeObjects.Add(pid, session.SimpleAudioVolume);
+            }
+            return _appVolumeObjects[pid].MasterVolume * 100;
         }
 
         public static bool? GetApplicationMute(uint pid)
         {
-            SimpleAudioVolume? volume = GetVolumeObject(pid);
-            if (volume == null)
-                return null;
-
-            return volume.Mute;
+            if (!_appVolumeObjects.ContainsKey(pid))
+            {
+                AudioSessionControl2? session = GetVolumeObject(pid);
+                if (session == null || session.SimpleAudioVolume == null)
+                {
+                    return false;
+                }
+                _appVolumeObjects.Add(pid, session.SimpleAudioVolume);
+            }
+            return _appVolumeObjects[pid].Mute;
         }
 
         public static void SetApplicationVolume(uint pid, float level)
         {
-            SimpleAudioVolume? volume = GetVolumeObject(pid);
-            if (volume == null || level < 0 || level > 100)
-                return;
-
-            volume.MasterVolume = level / 100;
+            if (!_appVolumeObjects.ContainsKey(pid))
+            {
+                AudioSessionControl2? session = GetVolumeObject(pid);
+                if (session == null || session.SimpleAudioVolume == null)
+                {
+                    return;
+                }
+                _appVolumeObjects.Add(pid, session.SimpleAudioVolume);
+            }
+            _appVolumeObjects[pid].MasterVolume = level / 100;
         }
 
         public static void SetApplicationMute(uint pid, bool mute)
         {
-            SimpleAudioVolume? volume = GetVolumeObject(pid);
-            if (volume == null)
-                return;
-
-            volume.Mute = mute;
+            if (!_appVolumeObjects.ContainsKey(pid))
+            {
+                AudioSessionControl2? session = GetVolumeObject(pid);
+                if (session == null || session.SimpleAudioVolume == null)
+                {
+                    return;
+                }
+                _appVolumeObjects.Add(pid, session.SimpleAudioVolume);
+            }
+            _appVolumeObjects[pid].Mute = mute;
         }
 
-        private static SimpleAudioVolume? GetVolumeObject(uint pid)
+        private static AudioSessionControl2? GetVolumeObject(uint pid)
         {
             MMDeviceEnumerator deviceEnumerator = new(Guid.NewGuid());
             MMDeviceCollection speakers = deviceEnumerator.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active);
 
-            SimpleAudioVolume? volume = null;
             foreach (var speaker in speakers)
             {
-                AudioSessionManager2? mgr = speaker.AudioSessionManager2;
-                if (mgr == null)
+                using (speaker)
                 {
-                    continue;
-                }
-                SessionCollection? sessions = mgr.Sessions;
-                if (sessions == null)
-                {
-                    continue;
-                }
-
-                foreach (var session in sessions)
-                {
-                    if (session.ProcessID == pid)
+                    using AudioSessionManager2? mgr = speaker.AudioSessionManager2;
+                    if (mgr == null)
                     {
-                        volume = session.SimpleAudioVolume;
-                        break;
+                        continue;
+                    }
+                    SessionCollection? sessions = mgr.Sessions;
+                    if (sessions == null)
+                    {
+                        continue;
+                    }
+
+                    if (sessions.Any(s => s.ProcessID == pid))
+                    {
+                        return sessions.First(s => s.ProcessID == pid);
                     }
                 }
             }
-            return volume;
-        }
-
-        public static AudioSessionControl2? GetApplicationVolumeSession(uint pid)
-        {
-            MMDeviceEnumerator deviceEnumerator = new(Guid.NewGuid());
-            MMDeviceCollection speakers = deviceEnumerator.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active);
-
-            AudioSessionControl2? session = null;
-            foreach (var speaker in speakers)
-            {
-                AudioSessionManager2? mgr = speaker.AudioSessionManager2;
-                if (mgr == null)
-                {
-                    continue;
-                }
-                SessionCollection? sessions = mgr.Sessions;
-                if (sessions == null || sessions.Count == 0)
-                {
-                    continue;
-                }
-
-                foreach (var s in sessions)
-                {
-                    if (s.ProcessID == pid)
-                    {
-                        session = s;
-                        break;
-                    }
-                }
-            }
-            return session;
+            return null;
         }
 
         public static IEnumerable<uint> GetVolumeObjects()
         {
             MMDeviceEnumerator deviceEnumerator = new(Guid.NewGuid());
-            MMDevice speaker = deviceEnumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
+            using MMDevice speaker = deviceEnumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
+            using AudioSessionManager2? mgr = speaker.AudioSessionManager2;
 
-            AudioSessionManager2? mgr = speaker.AudioSessionManager2;
             if (mgr == null)
             {
                 yield break;
@@ -250,7 +239,10 @@ namespace ControlPanel.Core.Helpers
 
             foreach (var session in sessions)
             {
-                yield return session.ProcessID;
+                using (session)
+                {
+                    yield return session.ProcessID;
+                }
             }
         }
 

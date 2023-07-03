@@ -8,7 +8,7 @@ namespace ControlPanel.Mqtt
 {
     public class Worker : BackgroundService
     {
-        private const int MONITOR_DELAY = 500;
+        private const int MONITOR_DELAY = 200;
         private const int SOURCE_DELAY = 5000;
 
         private readonly ILogger<Worker> _logger;
@@ -46,14 +46,25 @@ namespace ControlPanel.Mqtt
             _logger.LogInformation("Worker running at: {time}", DateTimeOffset.Now);
 
             _logger.LogInformation("Monitoring system volume.");
-            _volumes.Add("SystemVolume", new VolumeInfo(new Thread(CheckSystemVolume)));
-            _volumes["SystemVolume"].VolumeChanged += VolumeInfo_VolumeChanged;
-            _volumes["SystemVolume"].MutedChanged += VolumeInfo_MutedChanged;
+            VolumeInfo vInfo = new(_volumeProvider);
+            _volumes.Add("SystemVolume", vInfo);
+
+            vInfo.VolumeChanged += VolumeInfo_VolumeChanged;
+            vInfo.MutedChanged += VolumeInfo_MutedChanged;
 
             _mqttClient.SubscribeAsync("esp32iotsensor/ControlPanel/in", MqttQualityOfServiceLevel.AtLeastOnce, stoppingToken).GetAwaiter().GetResult();
 
-            while (!stoppingToken.IsCancellationRequested)
+            while (isRunning && !stoppingToken.IsCancellationRequested)
             {
+                if (!_mqttClient.IsConnected)
+                {
+                    try
+                    {
+                        _mqttClient.ConnectAsync(_mqttClientOptions, stoppingToken).GetAwaiter().GetResult();
+                    }
+                    catch { }
+                }
+
                 var apps = CoreAudioHelper.GetAudioApps();
                 foreach (var app in apps)
                 {
@@ -61,10 +72,11 @@ namespace ControlPanel.Mqtt
                     if (!_volumes.Select(pair => pair.Key).Contains(appName))
                     {
                         _logger.LogInformation("Monitoring {appName}.", appName);
-                        _volumes.Add(appName, new VolumeInfo(appName, new Thread(() => CheckAppVolume(appName))));
+                        vInfo = new(_volumeProvider, appName);
+                        _volumes.Add(appName, vInfo);
 
-                        _volumes[appName].VolumeChanged += VolumeInfo_VolumeChanged;
-                        _volumes[appName].MutedChanged += VolumeInfo_MutedChanged;
+                        vInfo.VolumeChanged += VolumeInfo_VolumeChanged;
+                        vInfo.MutedChanged += VolumeInfo_MutedChanged;
                     }
                 }
                 foreach (var volume in _volumes.Where(v => v.Key != "SystemVolume"))
@@ -77,6 +89,7 @@ namespace ControlPanel.Mqtt
                         _volumes.Remove(volume.Key);
                     }
                 }
+                Thread.Sleep(SOURCE_DELAY);
                 await Task.Delay(SOURCE_DELAY, stoppingToken);
             }
 
@@ -91,48 +104,33 @@ namespace ControlPanel.Mqtt
         private void VolumeInfo_VolumeChanged(object? sender, VolumeChangedEventArgs e)
         {
             var vInfo = (VolumeInfo)sender;
-            SendLevelMessage(vInfo.Topic, e.Volume);
+            if (e.Mute)
+            {
+                _mqttClient.ApplicationMessageReceivedAsync -= ApplicationMessageReceived;
+            }
+            SendLevelMessage(vInfo.Topic, e.Mute ? 0 : e.Volume);
+            if (e.Mute)
+            {
+                Thread.Sleep(100);
+                _mqttClient.ApplicationMessageReceivedAsync += ApplicationMessageReceived;
+            }
             _logger.LogTrace("{source} volume changed to: {volume:00}", vInfo.Topic, e.Volume);
         }
 
         private void VolumeInfo_MutedChanged(object? sender, VolumeChangedEventArgs e)
         {
             var vInfo = (VolumeInfo)sender;
-            //SendMuteMessage(vInfo.Topic, e.Mute);
+            if (e.Mute)
+            {
+                _mqttClient.ApplicationMessageReceivedAsync -= ApplicationMessageReceived;
+            }
+            SendLevelMessage(vInfo.Topic, e.Mute ? 0 : e.Volume);
+            if (e.Mute)
+            {
+                Thread.Sleep(100);
+                _mqttClient.ApplicationMessageReceivedAsync += ApplicationMessageReceived;
+            }
             _logger.LogTrace("{source} muted", vInfo.Topic);
-        }
-
-        private void CheckSystemVolume()
-        {
-            VolumeInfo vInfo = _volumes["SystemVolume"];
-            try
-            {
-                while (isRunning)
-                {
-                    vInfo.Volume = _volumeProvider.GetSystemVolumeLevel();
-                    vInfo.Muted = _volumeProvider.GetSystemVolumeMute();
-
-                    Thread.Sleep(MONITOR_DELAY);
-                }
-            }
-            catch { }
-        }
-
-        private void CheckAppVolume(string appName)
-        {
-            VolumeInfo vInfo = _volumes[appName];
-            try
-            {
-                while (isRunning)
-                {
-                    vInfo.Volume = _volumeProvider.GetApplicationVolumeLevel(appName);
-                    vInfo.Muted = _volumeProvider.GetApplicationVolumeMute(appName);
-
-
-                    Thread.Sleep(MONITOR_DELAY);
-                }
-            }
-            catch { }
         }
 
         private void SendLevelMessage(string topicName, float level)
@@ -162,27 +160,16 @@ namespace ControlPanel.Mqtt
 
             try
             {
-
                 if (payload.Contains("slide"))
                 {
                     int level = int.Parse(payload[(payload.IndexOf(":") + 1)..^1].Trim());
                     if (payload.Contains("slide0"))
                     {
-                        VolumeInfo vInfo = _volumes["SystemVolume"];
-                        vInfo.VolumeChanged -= VolumeInfo_VolumeChanged;
-                        vInfo.MutedChanged -= VolumeInfo_MutedChanged;
-                        _volumeProvider.SetSystemVolumeLevel(level);
-                        vInfo.Volume = _volumeProvider.GetSystemVolumeLevel();
-                        vInfo.VolumeChanged += VolumeInfo_VolumeChanged;
-                        vInfo.MutedChanged += VolumeInfo_MutedChanged;
+                        _volumes["SystemVolume"].SetVolume(level);
                     }
                     else if (payload.Contains("slide1"))
                     {
-                        // Using threads here to improve response times
-                        (new Thread(() =>
-                        {
-                            _volumeProvider.SetApplicationVolumeLevel("YouTubeMusicDesktopApp", level);
-                        })).Start();
+                        _volumes["YouTubeMusicDesktopApp"].SetVolume(level);
                     }
                 }
             }
@@ -193,11 +180,16 @@ namespace ControlPanel.Mqtt
 
         private class VolumeInfo
         {
-            private readonly Thread _thread;
+            private readonly List<Thread> _setThreads = new();
+            private readonly IVolumeProvider _volumeProvider;
+            private readonly Thread? _thread;
+            private long _millis = DateTime.Now.Ticks;
+            private bool _isRunning = false;
             private bool _muted = false;
             private int _volume = -1;
 
             public readonly string Topic;
+
             public int Volume
             {
                 get
@@ -249,25 +241,91 @@ namespace ControlPanel.Mqtt
                 }
             }
 
-            public VolumeInfo(Thread thread)
-            {
-                Topic = "system";
-                _thread = thread;
-
-                _thread.Start();
-            }
-
-            public VolumeInfo(string appName, Thread thread)
+            public VolumeInfo(IVolumeProvider volumeProvider, string appName = "system")
             {
                 Topic = appName;
-                _thread = thread;
+                _volumeProvider = volumeProvider;
 
+                _isRunning = true;
+                _thread = new Thread(CheckVolume);
                 _thread.Start();
             }
+
+            public void SetVolume(int level)
+            {
+                if (_volume == level)
+                {
+                    return;
+                }
+
+                _millis = DateTime.Now.Ticks;
+                if (Topic == "system")
+                {
+                    _volumeProvider.SetSystemVolumeLevel(level);
+                }
+                else
+                {
+                    _volumeProvider.SetApplicationVolumeLevel(Topic, level);
+                }
+
+                _volume = level;
+                if (level > 0 && _muted)
+                {
+                    SetMute(false);
+                }
+            }
+
+            public void SetMute(bool mute)
+            {
+                if (Topic == "system")
+                {
+                    _volumeProvider.SetSystemVolumeMute(mute);
+                }
+                else
+                {
+                    _volumeProvider.SetApplicationVolumeMute(Topic, mute);
+                }
+                _muted = mute;
+            }
+
+            private void CheckVolume()
+            {
+                while (_isRunning)
+                {
+                    // If we've just set the volume within our delay window, 'pause' checking temporarily
+                    if(_millis > DateTime.Now.Ticks - MONITOR_DELAY * 2)
+                    {
+                        continue;
+                    }
+                    try
+                    {
+                        if (Topic == "system")
+                        {
+                            Volume = _volumeProvider.GetSystemVolumeLevel();
+                            Muted = _volumeProvider.GetSystemVolumeMute();
+                        }
+                        else
+                        {
+                            Volume = _volumeProvider.GetApplicationVolumeLevel(Topic);
+                            Muted = _volumeProvider.GetApplicationVolumeMute(Topic);
+                        }
+
+                        Thread.Sleep(MONITOR_DELAY);
+                    }
+                    catch { }
+                }
+            }
+
 
             public void Join()
             {
-                _thread.Join();
+                _isRunning = false;
+                foreach (Thread t in _setThreads)
+                {
+                    t.Join();
+                }
+
+                _thread?.Join();
             }
 
             public event EventHandler<VolumeChangedEventArgs>? VolumeChanged;
