@@ -1,63 +1,70 @@
-﻿using ControlPanel.Core.Providers;
+﻿using ControlPanel.Core.Helpers;
 using Microsoft.Extensions.DependencyInjection;
 using System.Reflection;
 using System.Runtime.InteropServices;
 
 namespace ControlPanel.Core.Factories
 {
-    public interface IVolumeProviderFactory
+    public interface IAudioHelperFactory
     {
-        IVolumeProvider GetVolumeProvider();
+        IAudioHelper GetAudioHelper();
     }
 
-    public class VolumeProviderFactory : IVolumeProviderFactory
+    public class AudioHelperFactory : IAudioHelperFactory
     {
         private readonly IServiceProvider _serviceProvider;
+        private static IAudioHelper _audioHelperInstance;
 
-        public VolumeProviderFactory(IServiceProvider serviceProvider)
+        public AudioHelperFactory(IServiceProvider serviceProvider)
         {
             _serviceProvider = serviceProvider;
         }
 
-        public IVolumeProvider GetVolumeProvider()
+        public IAudioHelper GetAudioHelper()
         {
+            if (_audioHelperInstance != null)
+            {
+                return _audioHelperInstance;
+            }
+
             Assembly platformAssembly;
-            Type? providerType;
+            Type? helperType;
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
                 platformAssembly = LoadAssembly("ControlPanel.Core.Windows.dll");
-                providerType = platformAssembly.GetType("ControlPanel.Core.Windows.WindowsVolumeProvider");
+                helperType = platformAssembly.GetType("ControlPanel.Core.Windows.CoreAudioHelper");
             }
             else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
             {
                 platformAssembly = LoadAssembly("ControlPanel.Core.Linux.dll");
-                providerType = platformAssembly.GetType("ControlPanel.Core.Linux.LinuxVolumeProvider");
+                helperType = platformAssembly.GetType("ControlPanel.Core.Linux.CoreAudioHelper");
             }
             else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
             {
                 platformAssembly = LoadAssembly("ControlPanel.Core.MacOS.dll");
-                providerType = platformAssembly.GetType("ControlPanel.Core.MacOS.MacOSVolumeProvider");
+                helperType = platformAssembly.GetType("ControlPanel.Core.MacOS.CoreAudioHelper");
             }
             else
             {
-                throw new NotSupportedException("Volume provider not available for the current platform.");
+                throw new NotSupportedException("Audio helper not available for the current platform.");
             }
 
-            if (providerType != null)
+            if (helperType != null)
             {
-                IVolumeProvider? provider = (IVolumeProvider?)ActivatorUtilities.CreateInstance(_serviceProvider, providerType);
-                if (provider != null)
+                IAudioHelper? helper = (IAudioHelper)ActivatorUtilities.CreateInstance(_serviceProvider, helperType);
+                if (helper != null)
                 {
-                    return provider;
+                    _audioHelperInstance = helper;
+                    return helper;
                 }
                 else
                 {
-                    throw new NotSupportedException("Volume provider defined, but not yet implemented for the current platform.");
+                    throw new NotSupportedException("Audio helper defined, but not yet implemented for the current platform.");
                 }
             }
             else
             {
-                throw new NotSupportedException("Volume provider not implemented for the current platform.");
+                throw new NotSupportedException("Audio helper not implemented for the current platform.");
             }
         }
 

@@ -13,7 +13,8 @@ public class Program
         Host.CreateDefaultBuilder(args)
             .ConfigureServices(services =>
             {
-                services.AddSingleton(VolumeProviderFactory.GetVolumeProvider());
+                services.AddSingleton<IAudioHelperFactory, AudioHelperFactory>();
+                services.AddSingleton<IVolumeProviderFactory, VolumeProviderFactory>();
                 services.AddHostedService<Worker>();
             });
 }

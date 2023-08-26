@@ -1,67 +1,70 @@
-﻿using ControlPanel.Core.Helpers;
+﻿using ControlPanel.Core.Factories;
+using ControlPanel.Core.Helpers;
 using ControlPanel.Core.Providers;
 
 namespace ControlPanel.Core.Windows
 {
     public class WindowsVolumeProvider : IVolumeProvider
     {
-        int IVolumeProvider.GetApplicationVolumeLevel(string appName)
+        private readonly IAudioHelper _audioHelper;
+
+        public WindowsVolumeProvider(IAudioHelperFactory audioHelperFactory)
         {
-            var _app = CoreAudioHelper.GetAudioApps().Where(app => app.ProcessName.Replace(" ", "").Equals(appName, StringComparison.InvariantCultureIgnoreCase));
-            if (_app.Any())
-            {
-                return (int)CoreAudioHelper.GetApplicationVolume((uint)_app.First().Id);
-            }
-            return -1;
+            _audioHelper = audioHelperFactory.GetAudioHelper();
         }
 
-        bool IVolumeProvider.GetApplicationVolumeMute(string appName)
+        #region System Volume
+        int IVolumeProvider.GetSystemLevel()
         {
-            var _app = CoreAudioHelper.GetAudioApps().Where(app => app.ProcessName.Replace(" ", "").Equals(appName, StringComparison.InvariantCultureIgnoreCase));
-            if (_app.Any())
-            {
-                return CoreAudioHelper.GetApplicationMute((uint)_app.First().Id).Value;
-            }
-            return true;
+            return (int)Math.Round(_audioHelper.GetSystemVolume());
         }
+        void IVolumeProvider.SetSystemVolume(int volume)
+        {
+            _audioHelper.SetSystemVolume(volume);
+        }
+        int IVolumeProvider.StepSystemVolume(int volume)
+        {
+            return (int)_audioHelper.StepSystemVolume(volume);
+        }
+        bool IVolumeProvider.GetSystemMute()
+        {
+            return _audioHelper.GetSystemMute();
+        }
+        void IVolumeProvider.SetSystemMute(bool mute)
+        {
+            _audioHelper.SetSystemMute(mute);
+        }
+        bool IVolumeProvider.ToggleSystemMute()
+        {
+            return _audioHelper.ToggleSystemMute();
+        }
+        #endregion
 
-        int IVolumeProvider.GetSystemVolumeLevel()
+        #region Application Volume
+        int IVolumeProvider.GetApplicationVolume(string appName)
         {
-            return (int)Math.Round(CoreAudioHelper.GetMasterVolume());
-            throw new NotImplementedException();
+            return (int)_audioHelper.GetApplicationVolume(appName);
         }
-
-        bool IVolumeProvider.GetSystemVolumeMute()
+        void IVolumeProvider.SetApplicationVolume(string appName, int volume)
         {
-            return CoreAudioHelper.GetMasterVolumeMute();
+            _audioHelper.SetApplicationVolume(appName, volume);
         }
-
-        void IVolumeProvider.SetApplicationVolumeLevel(string appName, int volume)
+        int IVolumeProvider.StepApplicationVolume(string appName, int volume)
         {
-            var _app = CoreAudioHelper.GetAudioApps().Where(app => app.ProcessName.Replace(" ", "").Equals(appName, StringComparison.InvariantCultureIgnoreCase));
-            if (_app.Any())
-            {
-                CoreAudioHelper.SetApplicationVolume((uint)_app.First().Id, volume);
-            }
+            return (int)_audioHelper.StepApplicationVolume(appName, volume);
         }
-
-        void IVolumeProvider.SetApplicationVolumeMute(string appName, bool mute)
+        bool IVolumeProvider.GetApplicationMute(string appName)
         {
-            var _app = CoreAudioHelper.GetAudioApps().Where(app => app.ProcessName.Replace(" ", "").Equals(appName, StringComparison.InvariantCultureIgnoreCase));
-            if (_app.Any())
-            {
-                CoreAudioHelper.SetApplicationMute((uint)_app.First().Id, mute);
-            }
+            return _audioHelper.GetApplicationMute(appName);
         }
-
-        void IVolumeProvider.SetSystemVolumeLevel(int volume)
+        void IVolumeProvider.SetApplicationMute(string appName, bool mute)
         {
-            CoreAudioHelper.SetMasterVolume(volume);
+            _audioHelper.SetApplicationMute(appName, mute);
         }
-
-        void IVolumeProvider.SetSystemVolumeMute(bool mute)
+        bool IVolumeProvider.ToggleApplicationMute(string appName)
         {
-            CoreAudioHelper.SetMasterVolumeMute(mute);
+            return _audioHelper.ToggleApplicationMute(appName);
         }
+        #endregion
     }
 }

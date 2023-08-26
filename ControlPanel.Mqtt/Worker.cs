@@ -1,4 +1,5 @@
-﻿using ControlPanel.Core.Helpers;
+﻿using ControlPanel.Core.Factories;
+using ControlPanel.Core.Helpers;
 using ControlPanel.Core.Providers;
 using MQTTnet;
 using MQTTnet.Client;
@@ -8,11 +9,12 @@ namespace ControlPanel.Mqtt
 {
     public class Worker : BackgroundService
     {
-        private const int MONITOR_DELAY = 200;
+
         private const int SOURCE_DELAY = 5000;
 
         private readonly ILogger<Worker> _logger;
         private readonly IVolumeProvider _volumeProvider;
+        private readonly IAudioHelper _audioHelper;
         private readonly IMqttClient _mqttClient;
         private readonly MqttClientOptions _mqttClientOptions;
 
@@ -21,10 +23,17 @@ namespace ControlPanel.Mqtt
 
         public Worker(
             ILogger<Worker> logger,
-            IVolumeProvider volumeProvider)
+            IVolumeProviderFactory volumeProviderFactory,
+            IAudioHelperFactory audioHelperFactory)
         {
             _logger = logger;
-            _volumeProvider = volumeProvider;
+            _volumeProvider = volumeProviderFactory.GetVolumeProvider();
+            _audioHelper = audioHelperFactory.GetAudioHelper();
+
+            // Used mycurvefit.com to visualize and customize the curve
+            _audioHelper.AddCurve(0, 0);
+            _audioHelper.AddCurve(60, 36);
+            _audioHelper.AddCurve(100, 100);
 
             _mqttClient = (new MqttFactory()).CreateMqttClient();
             _mqttClient.ApplicationMessageReceivedAsync += ApplicationMessageReceived;
@@ -61,14 +70,15 @@ namespace ControlPanel.Mqtt
                     try
                     {
                         _mqttClient.ConnectAsync(_mqttClientOptions, stoppingToken).GetAwaiter().GetResult();
+                        _mqttClient.SubscribeAsync("esp32iotsensor/ControlPanel/in", MqttQualityOfServiceLevel.AtLeastOnce, stoppingToken).GetAwaiter().GetResult();
                     }
                     catch { }
                 }
 
-                var apps = CoreAudioHelper.GetAudioApps();
+                var apps = _audioHelper.GetAudioApps();
                 foreach (var app in apps)
                 {
-                    string appName = app.ProcessName.Replace(" ", "");
+                    string appName = app;
                     if (!_volumes.Select(pair => pair.Key).Contains(appName))
                     {
                         _logger.LogInformation("Monitoring {appName}.", appName);
@@ -82,7 +92,7 @@ namespace ControlPanel.Mqtt
                 foreach (var volume in _volumes.Where(v => v.Key != "SystemVolume"))
                 {
                     // If a previously monitored application is no longer available, end that thread
-                    if (!apps.Select(a => a.ProcessName.Replace(" ", "")).Contains(volume.Key))
+                    if (!apps.Contains(volume.Key))
                     {
                         _logger.LogInformation("No longer monitoring {appName}.", volume.Key);
                         volume.Value.Join();
@@ -115,6 +125,7 @@ namespace ControlPanel.Mqtt
                 _mqttClient.ApplicationMessageReceivedAsync += ApplicationMessageReceived;
             }
             _logger.LogTrace("{source} volume changed to: {volume:00}", vInfo.Topic, e.Volume);
+            _logger.LogInformation("");
         }
 
         private void VolumeInfo_MutedChanged(object? sender, VolumeChangedEventArgs e)
@@ -176,166 +187,6 @@ namespace ControlPanel.Mqtt
             catch { }
 
             return Task.CompletedTask;
-        }
-
-        private class VolumeInfo
-        {
-            private readonly List<Thread> _setThreads = new();
-            private readonly IVolumeProvider _volumeProvider;
-            private readonly Thread? _thread;
-            private long _millis = DateTime.Now.Ticks;
-            private bool _isRunning = false;
-            private bool _muted = false;
-            private int _volume = -1;
-
-            public readonly string Topic;
-
-            public int Volume
-            {
-                get
-                {
-                    return _volume;
-                }
-                set
-                {
-                    if (_volume != value)
-                    {
-                        _volume = value;
-                        On_VolumeChanged();
-                    }
-                }
-            }
-            public bool Muted
-            {
-                get
-                {
-                    return _muted;
-                }
-                set
-                {
-                    if (_muted != value)
-                    {
-                        _muted = value;
-                        On_MuteChanged();
-                    }
-                }
-            }
-
-            public void On_VolumeChanged()
-            {
-                var handler = VolumeChanged;
-                if (handler != null)
-                {
-                    var args = new VolumeChangedEventArgs() { Volume = _volume, Mute = _muted };
-                    handler(this, args);
-                }
-            }
-
-            public void On_MuteChanged()
-            {
-                var handler = MutedChanged;
-                if (handler != null)
-                {
-                    var args = new VolumeChangedEventArgs() { Volume = _volume, Mute = _muted };
-                    handler(this, args);
-                }
-            }
-
-            public VolumeInfo(IVolumeProvider volumeProvider, string appName = "system")
-            {
-                Topic = appName;
-                _volumeProvider = volumeProvider;
-
-                _isRunning = true;
-                _thread = new Thread(CheckVolume);
-                _thread.Start();
-            }
-
-            public void SetVolume(int level)
-            {
-                if (_volume == level)
-                {
-                    return;
-                }
-
-                _millis = DateTime.Now.Ticks;
-                if (Topic == "system")
-                {
-                    _volumeProvider.SetSystemVolumeLevel(level);
-                }
-                else
-                {
-                    _volumeProvider.SetApplicationVolumeLevel(Topic, level);
-                }
-
-                _volume = level;
-                if (level > 0 && _muted)
-                {
-                    SetMute(false);
-                }
-            }
-
-            public void SetMute(bool mute)
-            {
-                if (Topic == "system")
-                {
-                    _volumeProvider.SetSystemVolumeMute(mute);
-                }
-                else
-                {
-                    _volumeProvider.SetApplicationVolumeMute(Topic, mute);
-                }
-                _muted = mute;
-            }
-
-            private void CheckVolume()
-            {
-                while (_isRunning)
-                {
-                    // If we've just set the volume within our delay window, 'pause' checking temporarily
-                    if(_millis > DateTime.Now.Ticks - MONITOR_DELAY * 2)
-                    {
-                        continue;
-                    }
-                    try
-                    {
-                        if (Topic == "system")
-                        {
-                            Volume = _volumeProvider.GetSystemVolumeLevel();
-                            Muted = _volumeProvider.GetSystemVolumeMute();
-                        }
-                        else
-                        {
-                            Volume = _volumeProvider.GetApplicationVolumeLevel(Topic);
-                            Muted = _volumeProvider.GetApplicationVolumeMute(Topic);
-                        }
-
-                        Thread.Sleep(MONITOR_DELAY);
-                    }
-                    catch { }
-                }
-            }
-
-
-            public void Join()
-            {
-                _isRunning = false;
-                foreach (Thread t in _setThreads)
-                {
-                    t.Join();
-                }
-
-                _thread?.Join();
-            }
-
-            public event EventHandler<VolumeChangedEventArgs>? VolumeChanged;
-            public event EventHandler<VolumeChangedEventArgs>? MutedChanged;
-        }
-
-        private class VolumeChangedEventArgs : EventArgs
-        {
-            public float Volume { get; set; }
-            public bool Mute { get; set; }
         }
     }
 }
