@@ -126,8 +126,7 @@ void processSerial() {
 							}
 						}
 					}
-					while (processSlides())
-						;
+					while (processSlides());
 				}
 
 				resetSlides();
@@ -193,23 +192,30 @@ void processSerial() {
 }
 
 bool processSlides() {
-	bool slideMoved = false;
+	bool hasMoved = false;
 	bool hasUpdate = false;
 	for (int index = 0; index < sizeof(slides) / sizeof(*slides); index++) {
 		Slide* slide = slides[index];
 		if (slide) {
 			if (slide->process()) {
-				slideMoved = true;
+				hasMoved = true;
 			}
 
 			if (slide->hasUpdate() && slide->isTouched()) {
 				int position = slide->pushUpdate();
-				hasUpdate = true;
+
+				StaticJsonDocument<200> doc;
+				String key = "slide";
+				key += index;
+				doc[key] = position;
+				char payload[200];
+				ArduinoJson::serializeJson(doc, payload);
+				pubSubClient.publish((mqttStatus + "/out").c_str(), payload);
 			}
 		}
 	}
 
-	return slideMoved;
+	return hasMoved;
 }
 
 void resetSlides() {
@@ -245,9 +251,9 @@ void MqttReceiverCallback(char* topic, byte* inFrame, unsigned int length) {
 	if (messageTopic == "homeassistant/status") {
 		MqttHomeAssistantDiscovery();
 	}
-	else if (messageTopic.startsWith(mqttStatus)) {
+	else if (messageTopic.startsWith(mqttStatus + "/in")) {
 		StaticJsonDocument<200> doc;
-		deserializeJson(doc, payload);
+		ArduinoJson::deserializeJson(doc, payload);
 		for (int index = 0; index < sizeof(slides) / sizeof(*slides); index++) {
 			Slide* slide = slides[index];
 			if (slide) {
