@@ -2,13 +2,14 @@
 using CoreAudio;
 using Microsoft.Extensions.Logging;
 using System.Diagnostics;
-using System.Threading;
 
 namespace ControlPanel.Core.Windows
 {
     public class CoreAudioHelper : IAudioHelper
     {
-        private static readonly string[] IGNORED_APPS = { "idle", "signalrgb", "steamwebhelper", "steam", "parsecd", "mstsc", "brave", "atmgr", "msedgewebview2", "wsaclient", "windowsterminal" };
+        private static readonly string[] IGNORED_APPS =
+            { "idle", "signalrgb", "steamwebhelper", "steam", "parsecd", "mstsc", "brave",
+              "atmgr", "msedgewebview2", "wsaclient", "windowsterminal", "hass.agent" };
         private readonly Dictionary<(string DeviceFriendlyName, string AppName), SimpleAudioVolume> _deviceSessions = new();
         private string _defaultSpeakerID = string.Empty;
         private readonly ILogger _logger;
@@ -20,11 +21,11 @@ namespace ControlPanel.Core.Windows
             _curveHelper = new AudioCurveHelper();
         }
 
+        #region Audio Curves
         public void AddCurve(int point, int value)
         {
             _curveHelper.AddValue(point, value);
         }
-
         public float ConvertToCurve(float value)
         {
             return _curveHelper.Interpolate(value);
@@ -33,10 +34,9 @@ namespace ControlPanel.Core.Windows
         {
             return _curveHelper.DeInterpolate(value);
         }
-
+        #endregion
 
         #region Output Device
-
         public void SetDefaultAudioEndpoint(string defaultAudioEndpoint)
         {
             MMDeviceEnumerator deviceEnumerator = new(Guid.NewGuid());
@@ -165,44 +165,50 @@ namespace ControlPanel.Core.Windows
                     }
                 }
             }
+
+            if(!_deviceSessions.Keys.Any(key => key.AppName == appName))
+            {
+                throw new ApplicationException("audio session not found for this application.");
+            }
+
             return _deviceSessions.Keys.Any(k => k.AppName == appName);
         }
 
         public float GetApplicationVolume(string appName)
         {
-            if (!GetAppSession(appName))
-            {
-                return 0;
-            }
             var key = (DeviceFriendlyName: _defaultSpeakerID, AppName: appName);
-
             try
             {
-                return ConvertFromCurve(_deviceSessions[key].MasterVolume * 100);
+                if (GetAppSession(appName))
+                {
+                    return ConvertFromCurve(_deviceSessions[key].MasterVolume * 100);
+                } else
+                {
+                    throw new Exception();
+                }
             }
             catch
             {
                 _deviceSessions.Remove(key);
-                return 0;
+                throw new ApplicationException("error using the app session for this application.");
             }
         }
 
         public void SetApplicationVolume(string appName, float level)
         {
-            if (!GetAppSession(appName))
-            {
-                return;
-            }
             var key = (DeviceFriendlyName: _defaultSpeakerID, AppName: appName);
-
             try
             {
-                _logger.LogTrace("setting app to {level:000}. level value is {level:000}", _curveHelper.Interpolate(level), level);
-                _deviceSessions[key].MasterVolume = ConvertToCurve(level) / 100;
+                if (GetAppSession(appName))
+                {
+                    _logger.LogTrace("setting app to {level:000}. level value is {level:000}", _curveHelper.Interpolate(level), level);
+                    _deviceSessions[key].MasterVolume = ConvertToCurve(level) / 100;
+                }
             }
             catch
             {
                 _deviceSessions.Remove(key);
+                throw new ApplicationException("error using the app session for this application.");
             }
         }
 
@@ -380,6 +386,12 @@ namespace ControlPanel.Core.Windows
                     yield return process.ProcessName.Replace(" ", "");
                 }
             }
+        }
+
+        public void RemoveApplication(string appName)
+        {
+            var key = (DeviceFriendlyName: _defaultSpeakerID, AppName: appName);
+            _deviceSessions.Remove(key);
         }
         #endregion
     }

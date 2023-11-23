@@ -125,7 +125,6 @@ namespace ControlPanel.Mqtt
                 _mqttClient.ApplicationMessageReceivedAsync += ApplicationMessageReceived;
             }
             _logger.LogTrace("{source} volume changed to: {volume:00}", vInfo.Topic, e.Volume);
-            _logger.LogInformation("");
         }
 
         private void VolumeInfo_MutedChanged(object? sender, VolumeChangedEventArgs e)

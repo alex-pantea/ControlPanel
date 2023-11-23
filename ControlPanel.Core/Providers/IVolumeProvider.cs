@@ -20,6 +20,7 @@ namespace ControlPanel.Core.Providers
         public bool GetApplicationMute(string appName);
         public void SetApplicationMute(string appName, bool mute);
         public bool ToggleApplicationMute(string appName);
+        public void RemoveApplication(string appName);
         #endregion
     }
 }

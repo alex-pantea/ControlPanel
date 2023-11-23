@@ -25,6 +25,11 @@ namespace ControlPanel.Core.MacOS
             throw new NotImplementedException();
         }
 
+        public void RemoveApplication(string appName)
+        {
+            throw new NotImplementedException();
+        }
+
         public void SetApplicationMute(string appName, bool mute)
         {
             throw new NotImplementedException();

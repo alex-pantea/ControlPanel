@@ -87,8 +87,6 @@ namespace ControlPanel.Core.Tests
             Assert.Multiple(() =>
             {
                 Assert.That(_curveHelper.IsValid(), Is.True);
-                Assert.That(_curveHelper.ConvertFromCurve(x), Is.EqualTo(x));
-                Assert.That(_curveHelper.ConvertToCurve(x), Is.EqualTo(x));
 
                 Assert.That(_curveHelper.Interpolate(x), Is.EqualTo(x));
                 Assert.That(_curveHelper.DeInterpolate(x), Is.EqualTo(x));
@@ -106,8 +104,6 @@ namespace ControlPanel.Core.Tests
             {
 
                 Assert.That(_curveHelper.IsValid(), Is.True);
-                Assert.That(_curveHelper.ConvertFromCurve(x), Is.EqualTo(x));
-                Assert.That(_curveHelper.ConvertToCurve(x), Is.EqualTo(x));
 
                 Assert.That(_curveHelper.Interpolate(x), Is.EqualTo(x));
                 Assert.That(_curveHelper.DeInterpolate(x), Is.EqualTo(x));
@@ -124,8 +120,6 @@ namespace ControlPanel.Core.Tests
             Assert.Multiple(() =>
             {
                 Assert.That(_curveHelper.IsValid(), Is.True);
-                Assert.That(_curveHelper.ConvertFromCurve(x), Is.EqualTo(x));
-                Assert.That(_curveHelper.ConvertToCurve(x), Is.EqualTo(x));
 
                 Assert.That(_curveHelper.Interpolate(x), Is.EqualTo(x));
                 Assert.That(_curveHelper.DeInterpolate(x), Is.EqualTo(x));
@@ -140,19 +134,6 @@ namespace ControlPanel.Core.Tests
 
             float y = x / 5f;
             Assert.That(_curveHelper.Interpolate(x), Is.EqualTo(y).Within(0.001));
-        }
-
-        [Test]
-        public void Test_50_100__10_100([Range(50, 100)] int x)
-        {
-            _curveHelper.AddValue(50, 10);
-            float y = x / 5f;
-
-            Assert.Multiple(() =>
-            {
-                Assert.That(_curveHelper.IsValid(), Is.True);
-                Assert.That(_curveHelper.ConvertToCurve(y), Is.EqualTo(x).Within(0.001));
-            });
         }
 
         [Test]

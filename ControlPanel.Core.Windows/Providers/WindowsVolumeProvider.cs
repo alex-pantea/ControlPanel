@@ -65,6 +65,10 @@ namespace ControlPanel.Core.Windows
         {
             return _audioHelper.ToggleApplicationMute(appName);
         }
+        void IVolumeProvider.RemoveApplication(string appName)
+        {
+            _audioHelper.RemoveApplication(appName);
+        }
         #endregion
     }
 }

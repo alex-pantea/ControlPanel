@@ -123,6 +123,7 @@ namespace ControlPanel.Mqtt
                 {
                     continue;
                 }
+
                 try
                 {
                     if (Topic == "system")
@@ -138,10 +139,14 @@ namespace ControlPanel.Mqtt
 
                     Thread.Sleep(MONITOR_DELAY);
                 }
-                catch (Exception ex)
+                catch
                 {
                     continue;
                 }
+            }
+            if (Topic != "system")
+            {
+                _volumeProvider.RemoveApplication(Topic);
             }
         }
 

@@ -251,7 +251,7 @@ void MqttReceiverCallback(char* topic, byte* inFrame, unsigned int length) {
 	if (messageTopic == "homeassistant/status") {
 		MqttHomeAssistantDiscovery();
 	}
-	else if (messageTopic.startsWith(mqttStatus + "/in")) {
+	else if (messageTopic.startsWith(mqttStatus)) {
 		StaticJsonDocument<200> doc;
 		ArduinoJson::deserializeJson(doc, payload);
 		for (int index = 0; index < sizeof(slides) / sizeof(*slides); index++) {
